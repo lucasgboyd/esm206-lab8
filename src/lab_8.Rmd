@@ -19,16 +19,106 @@ library(here)
 ```
 
 ```{r}
-homes <- read_csv(here("data", "slo_homes.csv")) %>% 
-  clean_names()
+homes <- read_csv(here("data", "slo_homes.csv"))
 ```
 
 Making a subset that has only observations for SLO, Arroyo Grande, Atascadero and
 Santa maria-orcutt
 ```{r}
 homes_sub <- homes %>% 
-  filter(city %in% c("San Luis Obispo", "Arroyo Grande", "Atascadero", "Santa Maria-Orcutt")) %>% 
-  
+  filter(City %in% c("San Luis Obispo", "Arroyo Grande", "Atascadero", "Santa Maria-Orcutt"))
+```
+
+## Let's explore the data a little bit
+
+Summary statistics (home price, based on city and sale status):
+Find and return a nice summary table of mean and sd of home price based on city and sale status.
+```{r}
+# can use eval = FALSE to make the code not even run at all 
+homes_sub %>% 
+  group_by(City, Status) %>% 
+  summarize(mean_price = mean(Price, na.rm = TRUE), 
+            sd_price = sd(Price, na.rm = TRUE))
+
+ggplot(data = homes_sub, aes(x = Price)) +
+  geom_density(aes(color = City, fill = City), alpha = 0.2) +
+  scale_x_continuous(limits = c(0, 3e6)) # changing the scale of x axis to only between 0 and 3 mil, setting a vector to specify the range
   
 ```
+
+Explore the relationship between square footage and home price. Change the point color by city, point shape by sale status
+
+```{r}
+ggplot(data = homes_sub, aes(x = SqFt, y = Price)) +
+  geom_point(alpha = 0.7, aes(color = City, shape = Status)) +
+  scale_y_continuous(limits = c(0, 1e6)) + 
+  scale_x_continuous(limits = c(0, 4000)) +
+  geom_smooth(method = "lm")
+```
+
+
+## model the relationship with home price as DV
+
+```{r}
+homes_lm1 <- lm(Price ~ City + Bedrooms + Bathrooms + SqFt + PricePerSqFt + Status, data = homes_sub)
+# make a subset that only contains quantitative variables
+homes_quant <- homes_sub %>% 
+  select(Price:PricePerSqFt)
+# use cor() to check correlations between variables
+homes_cor <- cor(homes_quant)
+# cool visualization of the correlation table
+corrplot(homes_cor, method = "pie")
+# explore the diagnostic plots
+plot(homes_lm1)
+```
+## let's try another model where we simplify this
+- city
+- SqFt
+- Status
+
+```{r}
+homes_lm2 <- lm(Price ~ City + SqFt + Status, data = homes_sub)
+plot(homes_lm2)
+
+# check out summary of models
+summary(homes_lm1)
+summary(homes_lm2)
+
+
+```
+
+## find the AIC value of each model 
+Best models have high fit, low complexity. This gives you one number to compare both these factors.
+
+```{r}
+AIC(homes_lm1) # lower AIC values are better models
+AIC(homes_lm2)
+```
+
+## try another permutation that might make more sense than these
+
+```{r}
+homes_lm3 <- lm(Price ~ SqFt + City + Status + Bedrooms, data = homes_sub)
+AIC(homes_lm3)
+```
+
+Use modelsummary() to show outputs side by side. 
+
+If you use modelsummary for multiple models, use list()
+```{r}
+# on a single model
+modelsummary(homes_lm1)
+#multiple models
+modelsummary(list(homes_lm1, homes_lm2, homes_lm3))
+```
+## make predictions using the model 
+use augment()
+```{r}
+homes_predicted <- augment(homes_lm1)
+```
+Use predict() to try out your model on new scenarios
+```{r}
+predict(homes_lm2)
+```
+
 
